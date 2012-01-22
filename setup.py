@@ -14,22 +14,23 @@ def read(fname):
 # setup call
 
 setup(
-    name = "PyGraphStats",
+    name = "PyGraphStat",
     version = "0.1",
     packages = find_packages(),
-    py_modules = ['random', 'embedding', 'classifiers','hypothesis-testing'],
-    install_requires = ['numpy>=1.3', 'scipy>=0.7', 'matplotlib>=0.99', 'h5py>=1.3', 'multiprocessing>=0.7'],
+    py_modules = (['PyGraphstat',
+					'PyGraphStat.RandomGraph', 
+					'PyGraphStat.tests', 
+					'PyGraphStat.embedding',
+					'PyGraphStat.classifiers',
+					'PyGraphStat.hypothesis-testing']),
+    install_requires = ['numpy>=1.3', 'scipy>=0.7', 'matplotlib>=0.99', 'h5py>=1.3', 'multiprocessing>=0.7', 'networkx>=1.6'],
 
     # metadata for upload to PyPI
     author = "Joshua T. Vogelstein, Logan Grosenick, and Daniel Sussman",
     author_email = "joshuav@jhu.edu",
-    description = '''This package provides the ability to perform statistical inference on graphs 
-		We provide methods to perform hypothesis testing, graph classification, unsupervised vertex clustering 
-		and semi-supervised vertex clustering. We also provide embedding techniques that give a representation 
-		of the graph in Euclidean space. Additionally we provide methods to generate random graphs such as stochastic 
-		blockmodel graphs and random dot product graphs.''',
+    description = 'statistical inference on graphs',
     long_description=read('README'),
-    license = "CC",
+    license = "CC BY 3.0",
     keywords = "graph statistics",
     url = "https://github.com/jovo/PyGraphStat", 
 
