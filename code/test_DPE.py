@@ -14,9 +14,9 @@ class test_DPE(unittest.TestCase):
 	def setUp(self):
 		pass
 
-def test_DPE():
-	G=rg.ER(5,0.1)    
-	return G
+	def test_DPE(self):
+		G=rg.ER(5,0.1)    
+		return G
 
     
 if __name__ == '__main__':
