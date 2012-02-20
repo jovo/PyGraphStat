@@ -12,7 +12,7 @@ from numpy import random
 from numpy import math
 
 def add_random_edges_between(G, nodes1, p, nodes2 = None):
-    """Generate random edges between specified nodes with probability p
+    """Generate random edges between specified nodes in a networkx graph w/probability p
     
     If nodes2 is None then just generate random undirected edges between nodes1
     If nodes2 is not None then generate random directed edges between nodes1 and nodes2
@@ -35,7 +35,7 @@ def add_random_edges_between(G, nodes1, p, nodes2 = None):
 
     if directed:
         n2 = len(nodes2) 
-        loop = not np.array_equal(nodes1, nodes2)
+        loop = not np.array_equal(nodes1, nodes2) # avoid self loops
         while v < n1: 
             lr = np.log(1.0 - random.random()) 
             w = w + 1 + int(lr/lp) 
@@ -113,8 +113,8 @@ def SBM(nvec,block_probs, directed=True, seed=None):
     loopy : bool, optional (default=True)
         If True return a loopy graph
     
-    This algorithm iterates over blocks, samples a binomial for each block, 
-    and then randomly assigns edges within the block.
+    This algorithm iterates over pairs of blocks and then assigns edges uniformly at random
+    between nodes in each block
     """
     
     if (block_probs<0).any():
@@ -132,10 +132,11 @@ def SBM(nvec,block_probs, directed=True, seed=None):
     else:
         G=nx.empty_graph(Nvertices,create_using=nx.Graph())
     block_idx = np.append(0, nvec).cumsum()
-    
+    block = np.zeros(Nvertices, dtype=np.int)
     
     for ii in xrange(Nblocks):
         nodes1 = np.arange(block_idx[ii],block_idx[ii+1])
+        block[block_idx[ii]:block_idx[ii+1]] = ii
         if directed:
             add_random_edges_between(G, nodes1, block_probs[ii,ii],nodes1)
         else:
@@ -149,12 +150,23 @@ def SBM(nvec,block_probs, directed=True, seed=None):
             else:
                 add_random_edges_between(G, nodes1, block_probs[ii,jj],nodes2)
 
+    nx.set_node_attributes(G, 'block', dict(zip(np.arange(Nvertices), block)))
     return G
     
 # add some aliases to common names
 stochastic_block_model=SBM
 
 def affiliation_model(n, k, p, q, seed=None):
+    """ Generates a random undirected affiliation model graph with n*k vertices
+    
+    Parameters
+    ----------
+    n -- number of nodes in each block
+    k -- number of blocks
+    p -- probability of edges within a block
+    q -- probability of edges between blocks
+    seed -- possible seed for random numbers
+    """ 
     block_probs = q*np.ones((k,k))+(p-q)*np.eye(k);
     nvec = n*np.ones((k,1),dtype = np.int)
     
