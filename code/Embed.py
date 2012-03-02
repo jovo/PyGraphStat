@@ -32,6 +32,10 @@ def laplacian_matrix(G):
     scale = [np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree]
     return np.dot(np.diag(scale),np.dot(A, np.diag(scale)))
 
+def self_matrix(G):
+    """A function for embedding if G is already stored in matrix form"""
+    return G
+
 class Embed(object):
     dim = None
     
@@ -53,7 +57,7 @@ class Embed(object):
             raise ValueError('Dimension must be <=self.dim')
         
     def embed(self, G, fast=True):
-        if self.G is not G or not fast:
+        if not fast or self.G is not G:
             self.G = G
             self.svec,self.sval,_ = la.svds(self.matrix(G), self.dim)
             self.sval = self.sval[::-1]
