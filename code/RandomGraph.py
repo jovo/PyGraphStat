@@ -104,12 +104,7 @@ def SBM(nvec,block_probs, directed=True, seed=None):
     
       math
     Notes
-    -----
-    
-    WILL ADD THESE FEATURES LATER
-    directed : bool, optional (default=True)
-        If True return a directed graph 
-    
+    -----    
     loopy : bool, optional (default=True)
         If True return a loopy graph
     
@@ -121,8 +116,10 @@ def SBM(nvec,block_probs, directed=True, seed=None):
         raise ValueError('some probability is <0')
     if (block_probs>1).any():
         raise ValueError('some probability is >1')
+    if np.shape(block_probs)[0] != len(nvec):
+        raise ValueError('nvec must be of length equal to the number of columns/rows of block_probs')
     
-    if not seed is None:
+    if seed:
         np.random.seed(seed)
     
     Nvertices=nvec.sum()        # total number of vertices
@@ -171,3 +168,82 @@ def affiliation_model(n, k, p, q, seed=None):
     nvec = n*np.ones((k,1),dtype = np.int)
     
     return SBM(nvec, block_probs, seed) 
+
+class RandomGraphGenerator(object):
+    """A parent class for random graph generators
+    
+    Children of this class must implement generate_random_graph and get_param_dict
+    methods.
+    """
+    
+    def __init__(self):
+        """WARNING: Not Implemented"""
+        raise NotImplementedError("Base class is not implemented serves only as a place holder")
+    
+    def iter_graph(self, nmc):
+        """A generator that will generate nmc instances of the random graph"""
+        for _ in xrange(nmc):
+            yield self.generate_graph()
+    
+    def generate_graph(self):
+        """WARNING NOT IMPLEMENTED!! Generates a random graph"""
+        raise NotImplementedError("Base class is not implemented serves only as a place holder")
+    
+    def get_param_dict(self):
+        """WARNING NOT IMPLEMENTED!! Returns a dict of the params"""
+        raise NotImplementedError("Base class is not implemented serves only as a place holder")
+
+class ERGenerator(RandomGraphGenerator):
+    """Generator for Erdos-Renyi random graph"""
+    p = None
+    nnodes = None
+    directed = None
+    
+    def __init__(self, p, nnodes, directed=False):
+        self.p = p
+        self.nnodes = nnodes
+        self.directed = directed
+    
+    def generate_graph(self):
+        """Generates an Erdos-Renyi random graph."""
+        return ER(self.nnodes, self.p, directed=self.directed)
+        
+    
+    def get_param_dict(self):
+        """Returns a dict of the params for the Erdos-Renyi Graph"""
+        return {'nnodes':self.nnodes, 'p':self.p, 'directed':self.directed}
+
+class SBMGenerator(RandomGraphGenerator):
+    block_prob = None
+    nvec = None
+    directed = None
+    
+    def __init__(self, block_prob, nvec, directed=False):
+        self.block_prob = block_prob
+        self.nvec = nvec
+        self.directed = directed
+    
+    def generate_graph(self):
+        """Generates an Erdos-Renyi random graph."""
+        return SBM(self.nvec, self.block_prob, directed=self.directed)
+    
+    def get_param_dict(self):
+        """Returns a dict of the params for the Erdos-Renyi Graph"""
+        return {'nvec':self.nvec, 'block_prob':self.block_prob, 'directed':self.directed}
+
+class AffilationGenerator(RandomGraphGenerator):
+    p = None
+    q = None
+    nodes_per_block = None
+    k = None
+    directed = None
+    
+    def __init__(self,n,k,p,q, directed=False):
+        self.p, self.q,self.nodes_per_block,self.k = (p,q,n,k)
+        self.directed = directed
+        
+    def generate_graph(self):
+        return affiliation_model(self.nodes_per_block, self.k, self.p, self.q)
+    
+    def get_param_dict(self):
+        return {'nodes_per_block':self.nodes_per_block, 'k':self.k, 'p':self.p, 'q':self.q}
