@@ -13,10 +13,14 @@ from sklearn.cluster import KMeans
 from itertools import product
 
 def adjacency_matrix(G):
+    """Returns the adjacency matrix of a networkx graph as an np.array"""
     return np.array(nx.adjacency_matrix(G))
 adjacency_sparse = nx.to_scipy_sparse_matrix
 
 def laplacian_sparse(G):
+    """Returns a scipy.sparse version of the normalized laplacian as given in Rohe, et al.
+    
+    L  = D^{-1/2}AD^{-1/2} where D is the diagonal matrix of degree"""
     n = G.number_of_nodes()
     A = nx.to_scipy_sparse_matrix(G)
     degree =  A*np.ones(n)
@@ -26,6 +30,9 @@ def laplacian_sparse(G):
     return scale*A*scale
 
 def laplacian_matrix(G):
+    """Returns an np.array version of the normalized laplacian as given in Rohe, et al.
+    
+    L  = D^{-1/2}AD^{-1/2} where D is the diagonal matrix of degree"""
     n = G.number_of_nodes()
     A = np.array(nx.adjacency_matrix(G))
     degree = np.dot(A,np.ones(n))
@@ -37,6 +44,7 @@ def self_matrix(G):
     return G
 
 class Embed(object):
+    """Class do perform spectral embedding of Graphs"""
     dim = None
     
     sval = None
@@ -46,30 +54,63 @@ class Embed(object):
     G = None
     
     def __init__(self, dim, matrix=adjacency_matrix):
+        """Initializes an Embed object
+        
+        Inputs
+        =======
+        dim -- dimension of the embeding
+        matrix -- function which returns a matrix which represents the graph
+                  the default is the (dense) adjacency matrix as an np.array
+                  The matrix must return something that is accepted by 
+                  scipy.sparse.linalg.svds
+        """
         self.dim = dim
         self.matrix = matrix
     
     
     def __check_dim(self,d):
+        """Helper function to make sure this is a valid dimension to return"""
         if d<1:
             raise ValueError('Dimension must be >=1')
         if d>self.dim:
             raise ValueError('Dimension must be <=self.dim')
         
     def embed(self, G, fast=True):
+        """Calculate the matrix for the graph and embed it to self.dim dimnensions
+        
+        Uses the dim largest singular values.
+        
+        Inputs
+        ======
+        G - the graph object, must be acceptable as a parameter for self.matrix
+        fast -- if true then don't check if self.G==G before re-doing the embedding
+        """ 
         if not fast or self.G is not G:
             self.G = G
             self.svec,self.sval,_ = la.svds(self.matrix(G), self.dim)
             self.sval = self.sval[::-1]
             self.svec = self.svec[:, ::-1]
         
-    def get_embedding(self, d, scale=None):
+    def get_embedding(self, d=None, scale=None):
+        """Return the scaled or unscaled version of the embedding
+        
+        Inputs
+        ======
+        d -- dimension you want for the embedding, None for self.dim
+        scale -- whether the singular vectors should be scaled by the square root singular values
+        """
         if scale:
             return self.get_scaled(d)
         else:
             return self.get_unscaled(d)
     
     def get_unscaled(self, d=None):
+        """Return the unscaled version of the embedding
+        
+        Inputs
+        ======
+        d -- dimension you want for the embedding, None for self.dim
+        """
         if not d:
             d=self.dim
         
@@ -78,6 +119,12 @@ class Embed(object):
         return self.svec[:,np.arange(d)]
         
     def get_scaled(self, d=None):
+        """Return the scaled version of the embedding
+        
+        Inputs
+        ======
+        d -- dimension you want for the embedding, None for self.dim
+        """
         if not d:
             d=self.dim
         self.__check_dim(d)
@@ -86,11 +133,13 @@ class Embed(object):
                     np.diag(np.sqrt(self.sval[np.arange(d)])))
         
 class EmbedIter(object):
+    """Object to iterate over different matrices, dimensions, scale/unscaled embeddings"""
     d = []
     matrix = []
     embed = None
     
     def __init__(self, d_range, matrices, scales):
+        """Initiate with lists of dimensions, matrices, scales"""
         self.d = d_range
         self.matrix = matrices
         self.scale = scales
@@ -104,51 +153,7 @@ class EmbedIter(object):
         
         
     
-
-
-
-#
-#class DotProductEmbed(Embed):
-#    sparse = None
-#    
-#    def __init__(self, dim, sparse=Falscipy_sparse_matrix(se):
-#        self.dim = dim
-#        self.sparse = sparse
-#    
-#    def embed(self, G, scaled=True):
-#        assert(isinstance(G, nx.Graph))
-#        if self.sparse:
-#            A = nx.to_scipy_sparse_matrix(G)
-#        else:
-#            A = nx.adjacency_matrix(G)
-#        self.svecs,self.svals,_ = la.svds(A, self.dim)
-#
-#class LaplacianEmbed(Embed):
-#    sparse = None
-#    
-#    def __init__(self, dim, sparse=False):
-#        self.dim = dim
-#        self.sparse = sparse
-#    
-#    def embed(self, G, scaled=True):
-#        assert(isinstance(G, nx.Graph))
-#        n = G.number_of_nodes()
-#        if self.sparse:
-#            A = nx.to_scipy_sparse_matrix(G)
-#            degree =  A*np.ones(n)
-#            scale = sparse.lil_matrix((n,n))
-#            scale.setdiag([np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree])
-#            #scale = np.array([np.sqrt(d**-1) if d!=0 else 0 for d in degree])
-#            L = scale*A*scale
-#        else:
-#            A = nx.adjacency_matrix(G)
-#            degree = np.dot(A,np.ones(n))
-#            scale = [np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree]
-#            L = np.dot(np.diag(scale),np.dot(A, np.diag(scale)))
-#            
-#        self.svecs,self.svals,_ = la.svds(L, self.dim)
-#            
-#            
+      
     
 
 def dot_product_embed(G, d, scaled=True):
@@ -195,14 +200,6 @@ def normalized_laplacian_embed(G,d, scaled=False):
     -------
     n times d matrix where n=G.number_of_nodes()
     """
-#    n = G.number_of_nodes()
-#    A = nx.to_scipy_sparse_matrix(G)
-#    degree =  A*np.ones(n)
-#    
-#    scale = sparse.lil_matrix((n,n))
-#    scale.setdiag([np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree])
-#    
-#    L = scale*A*scale
     L  = laplacian_matrix(G)
     
     if scaled:
