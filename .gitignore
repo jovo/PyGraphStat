@@ -1,1 +1,7 @@
-"*.pyc"
+*.pyc
+
+.project.BACKUP.25199.project
+
+.project.BASE.25199.project
+
+.project.LOCAL.25199.project

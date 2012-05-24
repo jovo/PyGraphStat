@@ -9,12 +9,19 @@ import numpy as np
 import networkx as nx
 import scipy.sparse as sparse
 from scipy.sparse import linalg as la
+from scipy import linalg
 from sklearn.cluster import KMeans
 from itertools import product
 
 def adjacency_matrix(G):
     """Returns the adjacency matrix of a networkx graph as an np.array"""
     return np.array(nx.adjacency_matrix(G))
+
+def marchette_matrix(G):
+    A = np.array(nx.adjacency_matrix(G))
+    dia = A.dot(np.ones(A.shape[0]))/(G.number_of_nodes()-1)
+    return A + np.diag(dia)
+
 adjacency_sparse = nx.to_scipy_sparse_matrix
 
 def laplacian_sparse(G):
@@ -49,11 +56,13 @@ class Embed(object):
     
     sval = None
     svec = None
+    svecR = None
     
     matrix = None
     G = None
+    directed = False
     
-    def __init__(self, dim, matrix=adjacency_matrix):
+    def __init__(self, dim, matrix=adjacency_matrix, directed=False):
         """Initializes an Embed object
         
         Inputs
@@ -66,6 +75,7 @@ class Embed(object):
         """
         self.dim = dim
         self.matrix = matrix
+        self.directed = directed
     
     
     def __check_dim(self,d):
@@ -87,9 +97,15 @@ class Embed(object):
         """ 
         if not fast or self.G is not G:
             self.G = G
-            self.svec,self.sval,_ = la.svds(self.matrix(G), self.dim)
+            if not self.directed:
+                self.svec,self.sval,_ = la.svds(self.matrix(G), self.dim)
+            else:
+                self.svec,self.sval,self.svecR = la.svds(self.matrix(G), self.dim)
+                self.svecR = self.svecR[:, ::-1].T
             self.sval = self.sval[::-1]
             self.svec = self.svec[:, ::-1]
+            
+        return self
         
     def get_embedding(self, d=None, scale=None):
         """Return the scaled or unscaled version of the embedding
@@ -115,8 +131,11 @@ class Embed(object):
             d=self.dim
         
         self.__check_dim(d)
-          
-        return self.svec[:,np.arange(d)]
+        
+        if not self.directed:
+            return self.svec[:,np.arange(d)]
+        else:
+            return np.concatenate[(self.svec[:,np.arange(d)], self.svecR[:,np.arange(d)])]
         
     def get_scaled(self, d=None):
         """Return the scaled version of the embedding
@@ -129,8 +148,15 @@ class Embed(object):
             d=self.dim
         self.__check_dim(d)
         
-        return np.dot(self.svec[:,np.arange(d)], 
-                    np.diag(np.sqrt(self.sval[np.arange(d)])))
+        if not self.directed:
+            return np.dot(self.svec[:,np.arange(d)], 
+                        np.diag(np.sqrt(self.sval[np.arange(d)])))
+        else:
+            return np.concatenate((
+                np.dot(self.svec[:,np.arange(d)], 
+                        np.diag(np.sqrt(self.sval[np.arange(d)]))),
+                np.dot(self.svecR[:,np.arange(d)], 
+                        np.diag(np.sqrt(self.sval[np.arange(d)]))) ))
         
 class EmbedIter(object):
     """Object to iterate over different matrices, dimensions, scale/unscaled embeddings"""
@@ -153,7 +179,9 @@ class EmbedIter(object):
         
         
     
-      
+adjEmbed = Embed(10,matrix=adjacency_matrix)
+lapEmbed = Embed(10,matrix=laplacian_matrix)
+marEmbed = Embed(10,matrix=marchette_matrix)
     
 
 def dot_product_embed(G, d, scaled=True):
@@ -231,4 +259,39 @@ def cluster_vertices_kmeans(G, embed, d, k, name=None):
 
     return label
 
+
+
+def procrustes(X,Y):
+    """Finds the optimal affine transformation T to minimize ||x-Ty||_F
     
+    Parameters
+    ----------
+    x - reference, shape(x)=nxd where n is number of samples and d is dimension
+    y - to be aligned, shape(x)=nxd
+    
+    Returns
+    -------
+    Z - the transformed y
+    
+    TODO: return T -  the transformation
+    TODO: make scaling, reflection, centering optional
+    TODO: allow different dimension
+    """
+    
+    assert(X.shape == Y.shape)
+    
+    # Center
+    muX = np.mean(X,axis=0)
+    muY = np.mean(Y,axis=0)
+    X0 = X-muX
+    Y0 = Y-muY
+    
+    # Scale
+    varX = np.var(X0,axis=0)
+    varY = np.var(Y0,axis=0)
+    
+    #Rotate
+    l,d,m = linalg.svd(X0.T.dot(Y0))
+    Z = np.sqrt(np.sum(varX)/np.sum(varY))*Y0.dot(m).dot(l.T)+muX
+    
+    return Z

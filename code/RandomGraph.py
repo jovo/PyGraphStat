@@ -10,6 +10,8 @@ import networkx as nx
 import numpy as np
 from numpy import random
 from numpy import math
+from random import sample
+from itertools import combinations
 
 def add_random_edges_between(G, nodes1, p, nodes2 = None):
     """Generate random edges between specified nodes in a networkx graph w/probability p
@@ -26,6 +28,8 @@ def add_random_edges_between(G, nodes1, p, nodes2 = None):
        "Efficient generation of large random networks",
        Phys. Rev. E, 71, 036113, 2005.
     """
+    if p == 0:
+        return G
     directed = nodes2!=None
 
     v = 0  # Nodes in graph are from 0,n-1 (this is the first node index).
@@ -153,6 +157,23 @@ def SBM(nvec,block_probs, directed=True, seed=None):
 # add some aliases to common names
 stochastic_block_model=SBM
 
+def get_errorful_subgraph(G, z, eps):
+    """Generate a graph with z edges observed errorfully from the original graph G
+    
+    Let z=good+bad where bad ~ Binom(z,eps)
+    good eges will be randomly selected from the edges in the original graph
+    bad edges will be randomlu generated uniformly at random
+    """
+    bad = random.binomial(z,eps)
+    good = z-bad
+    n = G.number_of_nodes()
+    
+    edges = sample(nx.edges(G), good)
+    edges.extend(sample(list(combinations(xrange(n),2)), bad))
+    return nx.from_edgelist(edges, create_using=nx.Graph(G))
+    
+    
+
 def affiliation_model(n, k, p, q, seed=None):
     """ Generates a random undirected affiliation model graph with n*k vertices
     
@@ -217,11 +238,13 @@ class SBMGenerator(RandomGraphGenerator):
     block_prob = None
     nvec = None
     directed = None
+    label = None
     
     def __init__(self, block_prob, nvec, directed=False):
         self.block_prob = block_prob
         self.nvec = nvec
         self.directed = directed
+        self.label = np.concatenate([k*np.ones(nvec[k]) for k in xrange(len(nvec))])
     
     def generate_graph(self):
         """Generates an Erdos-Renyi random graph."""

@@ -22,6 +22,7 @@ Classes:
 from scipy import sparse
 import numpy as np
 from scipy.sparse import linalg as la
+from random import sample
 
 class Graph(object):
     """Parent class with attributes common to all graphs.
@@ -37,6 +38,7 @@ class Graph(object):
     n_nodes = 0
     directed = True
     loopy = False
+
     def __init__(self, n, directed, loopy):
         """Constructor for class Graph
         
@@ -67,6 +69,20 @@ class Graph(object):
                                     shape=(n,n))
         G.check_graph()
         return G
+    
+    @classmethod
+    def from_scipy_sparse(cls, A, directed=None):
+        n_nodes = np.shape(A)[0]
+        if directed==None:
+            #TODO Find a way to nicely check if A is symmetric
+            directed = False
+        loopy = any(A.diagonal()!=0)
+        
+        G = cls(n_nodes,directed,loopy)
+        G.Adj = A
+        return G
+            
+        
         
     def check_graph(self):
         """Checks that the graph adheres to directed- and loopy-ness"""
@@ -86,6 +102,15 @@ class Graph(object):
         else:
             evals, evecs = la.eigsh(self.Adj.tocsr(), dim)
             return np.sqrt(np.abs(evals))*evecs
+        
+    def get_adjacency(self):
+        return self.Adj
+    
+    def get_laplacian(self):
+        degree = self.Adj.dot(np.ones(self.n_nodes))
+        scale = sparse.lil_matrix((self.n_nodes,self.n_nodes))
+        scale.setdiag([np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree])
+        return scale*self.Adj*scale
 
 
 class BlockGraph( Graph ):
@@ -113,8 +138,8 @@ class BlockGraph( Graph ):
         """Generates the block assignment vector from self.nvec"""
         assert(self.nvec.size > 0 and np.any(self.nvec > 0))
         self.block_assignment = np.array([])
-        for nb in self.nvec:
-            self.block_assignment = np.append(self.block_assignment, np.ones(nb))
+        for b in xrange(len(self.nvec)):
+            self.block_assignment = np.append(self.block_assignment, np.ones(self.nvec[b])*b)
     
     def set_nvec(self,nvec):
         """Set the number of nodes in each block"""
@@ -184,6 +209,11 @@ class RandomGraph( Graph ):
             row = row[good_idx>0]
             A = sparse.coo_matrix((np.ones_like(col),(row,col)),shape=(n,m))
             return A
+        
+    def iter_mc(self,nmc):
+        for _ in xrange(nmc):
+            self.generate_adjacency()
+            yield self
 
 class ERGraph( RandomGraph ):
     """ERGraph class for Erdos-Renyi Random graphs
@@ -230,11 +260,17 @@ class SBMGraph( BlockGraph, RandomGraph ):
         self.P, self.rho, = P, rho
         self.generate_adjacency()
 
-    def generate_adjacency( self ):
+    def generate_adjacency( self, size_condition=False ):
         """Generates the adjacency matrix for this stochastic blockmodel
         
         Useful to regenerate an SBMGraph with the same parameters"""
-        self.nvec = np.random.multinomial( self.n_nodes, self.rho )
+        if not size_condition:
+            self.nvec = np.random.multinomial( self.n_nodes, self.rho )
+        else:
+            self.nvec = (self.n_nodes*np.array(self.rho)).astype(int)
+            if np.sum(self.nvec) is not self.n_nodes:
+                self.nvec[np.argmax(self.rho)]+=1
+            
         self.assign_block()
         row, col = np.array( [] ), np.array( [] )
         idx_add = np.append( 0, self.nvec[:-1] ).cumsum()
@@ -267,6 +303,11 @@ class SBMGraph( BlockGraph, RandomGraph ):
                     col = np.append( col, A.row + idx_add[bi] )
         self.Adj = sparse.coo_matrix(( np.ones_like( row ), ( row, col ) ),
                                      shape=( self.n_nodes, self.n_nodes ) )
+    
+    def iter_mc(self,nmc,size_condition=False):
+        for _ in xrange(nmc):
+            self.generate_adjacency(size_condition=size_condition)
+            yield self
         
     def check_rare_event(self, prob):
         t = np.sqrt(-np.log(prob/self.K)/(2*self.n_nodes))
@@ -275,14 +316,49 @@ class SBMGraph( BlockGraph, RandomGraph ):
         
 class ErrorfulSBMGraph(SBMGraph):
     AdjTrue =  []
+    eps = 0
+    z = 1
+    
     def __init__(self, n, P, rho, eps, z, directed, loopy ):
         SBMGraph.__init__(self, n, P, rho, directed, loopy);
+        self.z = z
+        self.eps = eps
         self.AdjTrue = self.Adj
-        self.generate_adjacency(self)
+        self.generate_adjacency()
         
     def generate_adjacency(self):
         SBMGraph.generate_adjacency(self)
+        self.AdjTrue = self.Adj
+        self.generate_erroful_adj()
+    
+    def generate_erroful_adj(self):
+        totalEdges = self.AdjTrue.row
+        nGoodEdges = np.random.binomial(self.z, self.eps)
+        nBadEdges = self.z-nGoodEdges 
+        goodEdges = sample(zip(self.Adj.row,self.Adj.col), nGoodEdges)
+        badEdges = sample()
+
         
+class ExchangeableGraph(RandomGraph):
+    w = lambda x,y: .5
+    xi = None
+    def __init__(self, w, n_nodes,directed=False,loopy=False):
+        Graph.__init__(self,n_nodes, directed, loopy)
+        self.w = w
+        self.generate_adjacency()
+    
+    def generate_adjacency(self, fix_xi=False):
+        if not fix_xi or not self.xi:
+            self.xi = np.random.rand(self.n_nodes)
+        w=self.w
+        self.Adj = (np.random.rand(self.n_nodes,self.n_nodes) 
+                    < np.array([[w(x,y) for x in self.xi] for y in self.xi]) ).astype(float)
+        if not self.directed:
+            self.Adj = np.triu(self.Adj)+np.triu(self.Adj,1).T
+        if not self.loopy:
+            self.Adj[np.arange(self.n_nodes),np.arange(self.n_nodes)]=0
+        
+             
 
 class RareEventException(Exception):
     """Exception class that should occur when something 'rare' happens"""
