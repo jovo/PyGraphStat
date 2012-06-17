@@ -135,7 +135,7 @@ class Embed(object):
         if not self.directed:
             return self.svec[:,np.arange(d)]
         else:
-            return np.concatenate[(self.svec[:,np.arange(d)], self.svecR[:,np.arange(d)])]
+            return np.concatenate((self.svec[:,np.arange(d)], self.svecR[:,np.arange(d)]),1)
         
     def get_scaled(self, d=None):
         """Return the scaled version of the embedding
@@ -156,7 +156,20 @@ class Embed(object):
                 np.dot(self.svec[:,np.arange(d)], 
                         np.diag(np.sqrt(self.sval[np.arange(d)]))),
                 np.dot(self.svecR[:,np.arange(d)], 
-                        np.diag(np.sqrt(self.sval[np.arange(d)]))) ))
+                        np.diag(np.sqrt(self.sval[np.arange(d)]))) ),1)
+            
+    def get_P_matrix(self, d=None):
+        x = self.get_scaled(d)
+        if not self.directed:
+            P = x.dot(x.T)
+        else:
+            P = x[:,:d].dot(x[:,d:].T)
+            
+        eps = .0001
+        P[P<0]= eps
+        P[P>1]=1-eps
+            
+        return P-np.diag(np.diag(P))
         
 class EmbedIter(object):
     """Object to iterate over different matrices, dimensions, scale/unscaled embeddings"""

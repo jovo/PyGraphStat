@@ -38,8 +38,9 @@ class Graph(object):
     n_nodes = 0
     directed = True
     loopy = False
+    dense = False
 
-    def __init__(self, n, directed, loopy):
+    def __init__(self, n, directed, loopy, dense=True):
         """Constructor for class Graph
         
         Input:
@@ -51,9 +52,10 @@ class Graph(object):
         self.n_nodes = n
         self.directed = directed
         self.loopy = loopy
+        self.dense = dense
     
     @classmethod
-    def from_edge_list(cls, n, edge_list, directed, loopy):
+    def from_edge_list(cls, n, edge_list, directed, loopy, dense=False):
         """Generate a graph from an edge list
         
         Input:
@@ -62,7 +64,7 @@ class Graph(object):
                          and the second row corresponds to the columns of Adj.
             directed
             loopy"""
-        G = Graph(n,directed,loopy)
+        G = Graph(n,directed,loopy,dense)
  
         G.Adj = sparse.coo_matrix((np.ones(edge_list.shape[1]),
                                     (edge_list[0,:],edge_list[1,:])),
@@ -78,7 +80,7 @@ class Graph(object):
             directed = False
         loopy = any(A.diagonal()!=0)
         
-        G = cls(n_nodes,directed,loopy)
+        G = cls(n_nodes,directed,loopy,dense=False)
         G.Adj = A
         return G
             
@@ -110,7 +112,7 @@ class Graph(object):
         degree = self.Adj.dot(np.ones(self.n_nodes))
         scale = sparse.lil_matrix((self.n_nodes,self.n_nodes))
         scale.setdiag([np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree])
-        return scale*self.Adj*scale
+        return scale.dot(self.Adj).dot(scale)
 
 
 class BlockGraph( Graph ):
@@ -180,6 +182,12 @@ class RandomGraph( Graph ):
         
         To quickly generate the matrix generate geometric random variables to 
         generate the indices for each edge"""
+        
+        # if this is a dense graph then just do this simple step
+        if self.dense:
+            return (np.rand(n,m)<p).astype(float)
+        
+        
         if n * m == 0:
             return sparse.coo_matrix(0, 1)
         

@@ -10,7 +10,7 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 from matplotlib import pyplot as plt
 from scipy.spatial import distance
 import numpy as np
-
+import random
 
 from rpy2 import robjects
 from rpy2.robjects import numpy2ri
@@ -73,30 +73,32 @@ def confusion_matrix(g1, g2, plot_table=True):
 
 class mclust_performance(object):
     mclustRes = None
-    _khat = None
-    _Lhat = None
     labels = []
-    _ari = None
     shape = None
     
-    shape
+    _khat = None
+    _Lhat = None
+    _ari = None
     
     def __init__(self,labels, x=None):
         self.labels = labels
         if x is not None:
             self.run(x)
     
-    def run(self, x):
+    def run(self, x, init=None):
         self.shape = x.shape
         numpy2ri.activate()
         r = robjects.r
         r.options(warn=-1)
         r.library('mclust')
-        mcr = r.Mclust(x)
-        
+        if init is None:
+            mcr = r.Mclust(x)
+        else:
+            subset = random.sample(np.arange(self.shape[0]),init)
+            mcr = r.Mclust(x,initialization=subset)
         self.mclustRes = dict([(i[0],i[1]) for i in mcr.iteritems()])
         return self
-        m
+    
     def get_khat(self):
         if self.mclustRes is None:
             print "No results yet. Use run(x)"
