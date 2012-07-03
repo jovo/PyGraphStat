@@ -85,17 +85,22 @@ class mclust_performance(object):
         if x is not None:
             self.run(x)
     
-    def run(self, x, init=None):
+    def run(self, x, init=None, kRange = None):
         self.shape = x.shape
         numpy2ri.activate()
         r = robjects.r
         r.options(warn=-1)
         r.library('mclust')
+        
+        if kRange is None:
+            kRane = arange(1,10)
+        
         if init is None:
             mcr = r.Mclust(x)
         else:
             subset = random.sample(np.arange(self.shape[0]),init)
-            mcr = r.Mclust(x,initialization=subset)
+            subsetR = r['list'](subset=subset)
+            mcr = r.Mclust(x,initialization=subsetR)
         self.mclustRes = dict([(i[0],i[1]) for i in mcr.iteritems()])
         return self
     
@@ -231,8 +236,4 @@ class vn_metrics(object):
     def first_correct(self):
         self.firstCorrect = int(self.nominate_nearest_neighbor(1)[0] in self.not_observed)
         return self.firstCorrect
-    
-        
-        
-        
     

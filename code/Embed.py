@@ -96,7 +96,6 @@ class Embed(object):
         fast -- if true then don't check if self.G==G before re-doing the embedding
         """ 
         if not fast or self.G is not G:
-            self.G = G
             if not self.directed:
                 self.svec,self.sval,_ = la.svds(self.matrix(G), self.dim)
             else:
@@ -104,6 +103,8 @@ class Embed(object):
                 self.svecR = self.svecR[:, ::-1].T
             self.sval = self.sval[::-1]
             self.svec = self.svec[:, ::-1]
+            
+            self.G = G
             
         return self
         

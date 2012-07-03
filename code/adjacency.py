@@ -83,7 +83,6 @@ class Graph(object):
         G = cls(n_nodes,directed,loopy,dense=False)
         G.Adj = A
         return G
-            
         
         
     def check_graph(self):
@@ -113,6 +112,17 @@ class Graph(object):
         scale = sparse.lil_matrix((self.n_nodes,self.n_nodes))
         scale.setdiag([np.sqrt(1.0/deg) if deg!=0 else 0 for deg in degree])
         return scale.dot(self.Adj).dot(scale)
+        
+    def neighbors(self,v):
+        if np.iterable(v):
+            assert( all(v>=0) and all(v<self.n_nodes))
+            return np.unique(np.concatenate([self.Adj[:,vert].nonzero()[0] for vert in v]))
+            
+        else: 
+            assert(v>=0 and v<self.n_nodes)
+            
+            neigh = self.Adj[:,v].nonzero()[0]
+            return neigh
 
 
 class BlockGraph( Graph ):
