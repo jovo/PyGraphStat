@@ -152,6 +152,8 @@ class BlockGraph( Graph ):
         self.block_assignment = np.array([])
         for b in xrange(len(self.nvec)):
             self.block_assignment = np.append(self.block_assignment, np.ones(self.nvec[b])*b)
+
+        self.block_assignment = self.block_assignment.astype(np.int)
     
     def set_nvec(self,nvec):
         """Set the number of nodes in each block"""
@@ -195,7 +197,7 @@ class RandomGraph( Graph ):
         
         # if this is a dense graph then just do this simple step
         if self.dense:
-            return (np.rand(n,m)<p).astype(float)
+            return (np.random.rand(n,m)<p).astype(float)
         
         
         if n * m == 0:
@@ -275,8 +277,13 @@ class SBMGraph( BlockGraph, RandomGraph ):
     rho = np.array( [] )
     def __init__( self, n, P, rho, directed, loopy ):
         BlockGraph.__init__( self, n, rho.size, directed, loopy )
+        if np.sum(rho) > 1:
+            rho = rho.astype(float)/np.sum(rho)
+            size_condition = True
+        else:
+            size_condition = False
         self.P, self.rho, = P, rho
-        self.generate_adjacency()
+        self.generate_adjacency(size_condition)
 
     def generate_adjacency( self, size_condition=False ):
         """Generates the adjacency matrix for this stochastic blockmodel
@@ -287,11 +294,22 @@ class SBMGraph( BlockGraph, RandomGraph ):
         else:
             self.nvec = (self.n_nodes*np.array(self.rho)).astype(int)
             if np.sum(self.nvec) is not self.n_nodes:
-                self.nvec[np.argmax(self.rho)]+=1
+                self.nvec[np.argmax(self.rho)]+=self.n_nodes-np.sum(self.nvec)
             
         self.assign_block()
+        if self.dense:
+            tau = self.block_assignment
+            self.Adj = (self.P[tau,:][:,tau]>np.random.rand(self.n_nodes,self.n_nodes)).astype(float)
+            if not self.directed:
+                self.Adj = np.triu(self.Adj,1)
+                self.Adj = self.Adj+self.Adj.T
+            return
+            
+
         row, col = np.array( [] ), np.array( [] )
+
         idx_add = np.append( 0, self.nvec[:-1] ).cumsum()
+            
         for bi in xrange( self.K ):
             if self.nvec[bi]==0:
                 continue
@@ -331,6 +349,26 @@ class SBMGraph( BlockGraph, RandomGraph ):
         t = np.sqrt(-np.log(prob/self.K)/(2*self.n_nodes))
         if np.any(np.abs(self.nvec/self.n_nodes-self.rho)>t):
             raise RareEventException(prob,'Groups sizes and probabilities do not match')
+            
+class RDPGraph(BlockGraph, RandomGraph):
+    
+    def __init__(self, n, pi, f):
+        self.f = f
+        self.pi = pi
+        self.n_nodes = n
+        
+        self.directed = False
+        self.loopy = False
+        
+    def generate_adjacency(self):
+        self.nvec = np.random.multinomial(self.n_nodes,self.pi).astype(int)
+        self.assign_block();
+        
+        self.X = np.concatenate([self.f[i](int(self.nvec[i])) for i in np.arange(len(self.f))])
+        P = self.X.dot(self.X.T)
+        
+        self.Adj = np.triu(np.random.random(P.shape)<P,1).astype(float)
+        self.Adj = self.Adj+self.Adj.T       
         
 class ErrorfulSBMGraph(SBMGraph):
     AdjTrue =  []
